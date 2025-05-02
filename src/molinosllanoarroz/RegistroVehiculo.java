@@ -58,7 +58,7 @@ public class RegistroVehiculo extends JFrame {
         txtBruto = new JTextField();
         p.add(txtBruto);
 
-        btnGuardar = new JButton("Guardar y Tiquete");
+        btnGuardar    = new JButton("Guardar y Tiquete");
         btnReimprimir = new JButton("Reimprimir Tiquete");
         p.add(btnGuardar);
         p.add(btnReimprimir);
@@ -91,14 +91,17 @@ public class RegistroVehiculo extends JFrame {
             ps.setString(3, txtCC.getText());
             ps.setString(4, comboTipo.getSelectedItem().toString());
             ps.setString(5, txtPlacas.getText());
-            double tara = Double.parseDouble(txtTara.getText());
+            double tara  = Double.parseDouble(txtTara.getText());
             double bruto = Double.parseDouble(txtBruto.getText());
             ps.setDouble(6, tara);
             ps.setDouble(7, bruto);
             ps.setDouble(8, bruto - tara);
             ps.executeUpdate();
-            ResultSet keys = ps.getGeneratedKeys();
-            if (keys.next()) txtId.setText(String.valueOf(keys.getInt(1)));
+
+            var keys = ps.getGeneratedKeys();
+            if (keys.next()) {
+                txtId.setText(String.valueOf(keys.getInt(1)));
+            }
 
             JOptionPane.showMessageDialog(this,
                 String.format("""
@@ -120,58 +123,55 @@ public class RegistroVehiculo extends JFrame {
                 )
             );
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error BD: " + ex.getMessage(),
-                                          "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                "Error BD: " + ex.getMessage(),
+                "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     public void reimprimirTiquete() {
-        
         String criterio = JOptionPane.showInputDialog(this,
             "Ingrese ID registro, CC o placas:");
         if (criterio == null || criterio.isBlank()) return;
+
         String sql = """
-            SELECT * FROM registro_vehiculo
+            SELECT id_registro, fecha, nombre_conductor, cc_conductor,
+                   tipo_vehiculo, placas, peso_tara, peso_bruto
+              FROM registro_vehiculo
              WHERE id_registro = ? OR cc_conductor = ? OR placas = ?
         """;
+
         try (Connection c = DBConnection.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, criterio);
             ps.setString(2, criterio);
             ps.setString(3, criterio);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                double tara = rs.getDouble("peso_tara");
-                double bruto = rs.getDouble("peso_bruto");
-                JOptionPane.showMessageDialog(this,
-                    String.format("""
-                        *** Reimpresión Tiquete ***
-                        ID Registro: %d
-                        Fecha: %s
-                        Conductor: %s
-                        CC: %s
-                        Tipo: %s
-                        Placas: %s
-                        Tara: %.2f kg
-                        Bruto: %.2f kg
-                        Neto: %.2f kg
-                        """,
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    // Crea el objeto de datos
+                    DatosTicket data = new DatosTicket(
                         rs.getInt("id_registro"),
-                        rs.getDate("fecha"),
+                        rs.getDate("fecha").toString(),
                         rs.getString("nombre_conductor"),
                         rs.getString("cc_conductor"),
                         rs.getString("tipo_vehiculo"),
                         rs.getString("placas"),
-                        tara, bruto, bruto - tara
-                    )
-                );
-            } else {
-                JOptionPane.showMessageDialog(this, "No se encontró registro.",
-                                              "Atención", JOptionPane.INFORMATION_MESSAGE);
+                        rs.getDouble("peso_tara"),
+                        rs.getDouble("peso_bruto")
+                    );
+                    // Muestra la ventana de tiquete con PDF
+                    new TicketPDF(data).setVisible(true);
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                        "No se encontró registro.",
+                        "Atención", JOptionPane.INFORMATION_MESSAGE);
+                }
             }
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error BD: " + ex.getMessage(),
-                                          "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                "Error BD: " + ex.getMessage(),
+                "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
